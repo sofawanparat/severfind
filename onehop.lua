@@ -1,15 +1,19 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
-local Window = Rayfield:CreateWindow({
-   Name = "HO Hub",
-   LoadingTitle = "Loading Hopper...",
-   LoadingSubtitle = "Selectable Server Finder",
-   ConfigurationSaving = { Enabled = false },
-   KeySystem = false,
+local Window = Fluent:CreateWindow({
+    Title = "Hebo Hub",
+    SubTitle = "Selectable Server Finder",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true, 
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.RightControl
 })
 
-local MainTab = Window:CreateTab("Server Finder")
-local MiscTab = Window:CreateTab("Misc")
+local Tabs = {
+    Main = Window:AddTab({ Title = "Server Finder", Icon = "search" }),
+    Misc = Window:AddTab({ Title = "Misc", Icon = "settings" })
+}
 
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
@@ -18,38 +22,43 @@ local RunService = game:GetService("RunService")
 local PlaceId = game.PlaceId
 local LocalPlayer = Players.LocalPlayer
 
-local serverMap = {} 
-local selectedServerId = nil 
+local serverMap = {}
+local selectedServerId = nil
 
-local CurrentServerLabel = MainTab:CreateLabel("คนในห้องปัจจุบัน (Real-Time): กำลังโหลด...")
+local CurrentServerLabel = Tabs.Main:AddParagraph({
+    Title = "คนในห้องปัจจุบัน (Real-Time)",
+    Content = "กำลังโหลด..."
+})
 
 local function UpdateCurrentPlayers()
-    CurrentServerLabel:Set("คนในห้องปัจจุบัน (Real-Time): " .. #Players:GetPlayers() .. " / " .. Players.MaxPlayers)
+    CurrentServerLabel:SetDesc("จำนวนผู้เล่น: " .. #Players:GetPlayers() .. " / " .. Players.MaxPlayers)
 end
 UpdateCurrentPlayers()
 
 Players.PlayerAdded:Connect(UpdateCurrentPlayers)
 Players.PlayerRemoving:Connect(UpdateCurrentPlayers)
 
-local StatusLabel = MainTab:CreateLabel("Status: รอการค้นหา...")
-
-local ServerDropdown = MainTab:CreateDropdown({
-   Name = "เลือกเซิร์ฟเวอร์ (คน 1 คน)",
-   Options = {"ยังไม่มีข้อมูล (กด Refresh)"},
-   CurrentOption = {"ยังไม่มีข้อมูล (กด Refresh)"},
-   MultipleOptions = false,
-   Flag = "ServerDropdown",
-   Callback = function(Option)
-       local selectedString = Option[1]
-       if serverMap[selectedString] then
-           selectedServerId = serverMap[selectedString]
-           StatusLabel:Set("เลือกแล้ว: " .. selectedString)
-       end
-   end,
+local StatusLabel = Tabs.Main:AddParagraph({
+    Title = "สถานะการค้นหา",
+    Content = "รอการค้นหา..."
 })
 
+local ServerDropdown = Tabs.Main:AddDropdown("ServerDropdown", {
+    Title = "เลือกเซิร์ฟเวอร์ (คน 1 คน)",
+    Values = {"ยังไม่มีข้อมูล (กด Refresh)"},
+    Multi = false,
+    Default = 1,
+})
+
+ServerDropdown:OnChanged(function(Value)
+    if serverMap[Value] then
+        selectedServerId = serverMap[Value]
+        StatusLabel:SetDesc("เลือกแล้ว: " .. Value)
+    end
+end)
+
 local function RefreshServers()
-    StatusLabel:Set("Status: กำลังสแกนหาเซิร์ฟเวอร์ล่าสุด...")
+    StatusLabel:SetDesc("กำลังสแกนหาเซิร์ฟเวอร์ล่าสุด...")
     serverMap = {}
     selectedServerId = nil
     
@@ -59,8 +68,9 @@ local function RefreshServers()
     local maxPagesToScan = 100
     
     for page = 1, maxPagesToScan do
-        StatusLabel:Set("Status: กำลังสแกนหน้า " .. page .. "... (พบ " .. foundCount .. "/10)")
-        local url = "https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+        StatusLabel:SetDesc("กำลังสแกนหน้า " .. page .. "... (พบ " .. foundCount .. "/10)")
+        
+        local url = "https://games.roproxy.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
         
         if cursor ~= "" then url = url .. "&cursor=" .. cursor end
         
@@ -87,87 +97,83 @@ local function RefreshServers()
             if foundCount >= 10 then break end
             if result.nextPageCursor then cursor = result.nextPageCursor else break end
         else
+            StatusLabel:SetDesc("เกิดข้อผิดพลาด (อาจเป็นที่ Executor หรือ Proxy)")
             break
         end
         task.wait(0.1)
     end
     
     if foundCount > 0 then
-        StatusLabel:Set("Status: พบ " .. foundCount .. " เซิร์ฟเวอร์! กรุณาเลือกจากเมนู")
-        ServerDropdown:Refresh(optionsList, true)
+        StatusLabel:SetDesc("พบ " .. foundCount .. " เซิร์ฟเวอร์! กรุณาเลือกจากเมนู")
+        ServerDropdown:SetValues(optionsList)
+        ServerDropdown:SetValue(optionsList[1])
     else
-        StatusLabel:Set("Status: ไม่พบเซิร์ฟเวอร์ที่มีผู้เล่น 1 คน")
-        ServerDropdown:Refresh({"ไม่พบข้อมูล"}, true)
+        StatusLabel:SetDesc("ไม่พบเซิร์ฟเวอร์ที่มีผู้เล่น 1 คน")
+        ServerDropdown:SetValues({"ไม่พบข้อมูล"})
+        ServerDropdown:SetValue("ไม่พบข้อมูล")
     end
 end
 
-MainTab:CreateButton({
-   Name = "🔄 Refresh ค้นหาเซิร์ฟเวอร์ (ดึงข้อมูลล่าสุด)",
-   Callback = function()
-       task.spawn(RefreshServers)
-   end,
+Tabs.Main:AddButton({
+    Title = "🔄 Refresh ค้นหาเซิร์ฟเวอร์",
+    Description = "ดึงข้อมูลเซิร์ฟเวอร์ล่าสุด",
+    Callback = function()
+        task.spawn(RefreshServers)
+    end
 })
 
-MainTab:CreateButton({
-   Name = "🚀 เข้าสู่เซิร์ฟเวอร์ที่เลือก",
-   Callback = function()
-       if selectedServerId then
-           StatusLabel:Set("Status: กำลังเทเลพอร์ต...")
-           task.wait(0.5)
-           TeleportService:TeleportToPlaceInstance(PlaceId, selectedServerId, LocalPlayer)
-       else
-           StatusLabel:Set("Status: ❌ กรุณาเลือกเซิร์ฟเวอร์จากเมนูก่อน!")
-       end
-   end,
+Tabs.Main:AddButton({
+    Title = "🚀 เข้าสู่เซิร์ฟเวอร์ที่เลือก",
+    Description = "วาร์ปไปเซิร์ฟเวอร์ที่เลือกไว้ใน Dropdown",
+    Callback = function()
+        if selectedServerId then
+            StatusLabel:SetDesc("กำลังเทเลพอร์ต...")
+            task.wait(0.5)
+            TeleportService:TeleportToPlaceInstance(PlaceId, selectedServerId, LocalPlayer)
+        else
+            StatusLabel:SetDesc("❌ กรุณาเลือกเซิร์ฟเวอร์จากเมนูก่อน!")
+        end
+    end
 })
 
-MiscTab:CreateKeybind({
-   Name = "ปุ่มเปิด/ปิด UI (คลิกเพื่อเปลี่ยนปุ่ม)",
-   CurrentKeybind = "RightControl",
-   HoldToInteract = false,
-   Flag = "ToggleUIKey",
-   Callback = function()
-       local parent = (gethui and gethui()) or game:GetService("CoreGui")
-       local rayfieldGui = parent:FindFirstChild("Rayfield") or game:GetService("CoreGui"):FindFirstChild("Rayfield")
-       
-       if rayfieldGui then
-           local mainFrame = rayfieldGui:FindFirstChild("Main")
-           if mainFrame then
-               mainFrame.Visible = not mainFrame.Visible
-           else
-               rayfieldGui.Enabled = not rayfieldGui.Enabled
-           end
-       end
-   end,
+Tabs.Misc:AddKeybind("ToggleUI", {
+    Title = "ปุ่มเปิด/ปิด UI",
+    Description = "คลิกเพื่อตั้งปุ่มซ่อน/แสดงหน้าต่าง",
+    Mode = "Toggle",
+    Default = "RightControl",
+    ChangedCallback = function(New)
+        Window.MinimizeKey = New
+    end
 })
 
-MiscTab:CreateButton({
-   Name = "🗑️ Reduce Lag (ลบเทกเจอร์/ลดแสง)",
-   Callback = function()
-       settings().Rendering.QualityLevel = 1
-       game.Lighting.GlobalShadows = false
-       for _, v in pairs(game:GetDescendants()) do
-           if v:IsA("Part") or v:IsA("Union") or v:IsA("CornerWedgePart") or v:IsA("TrussPart") or v:IsA("MeshPart") then
-               v.Material = "Plastic"
-               v.Reflectance = 0
-           elseif v:IsA("Decal") or v:IsA("Texture") then
-               v.Transparency = 1
-           elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
-               v.Lifetime = NumberRange.new(0)
-           elseif v:IsA("Explosion") or v:IsA("Fire") or v:IsA("SpotLight") or v:IsA("Smoke") or v:IsA("Sparkles") then
-               v.Enabled = false
-           end
-       end
-   end,
+Tabs.Misc:AddButton({
+    Title = "🗑️ Reduce Lag",
+    Description = "ลบเทกเจอร์/ลดแสง/ลบเอฟเฟกต์ เพื่อเพิ่ม FPS",
+    Callback = function()
+        settings().Rendering.QualityLevel = 1
+        game.Lighting.GlobalShadows = false
+        for _, v in pairs(game:GetDescendants()) do
+            if v:IsA("Part") or v:IsA("Union") or v:IsA("CornerWedgePart") or v:IsA("TrussPart") or v:IsA("MeshPart") then
+                v.Material = "Plastic"
+                v.Reflectance = 0
+            elseif v:IsA("Decal") or v:IsA("Texture") then
+                v.Transparency = 1
+            elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                v.Lifetime = NumberRange.new(0)
+            elseif v:IsA("Explosion") or v:IsA("Fire") or v:IsA("SpotLight") or v:IsA("Smoke") or v:IsA("Sparkles") then
+                v.Enabled = false
+            end
+        end
+    end
 })
 
-MiscTab:CreateToggle({
-   Name = "🚫 Disable Render (จอดำลดการใช้การ์ดจอ)",
-   CurrentValue = false,
-   Flag = "Disable3DRender",
-   Callback = function(Value)
-       pcall(function()
-           RunService:Set3dRenderingEnabled(not Value)
-       end)
-   end,
+Tabs.Misc:AddToggle("DisableRender", {
+    Title = "🚫 Disable Render",
+    Description = "จอดำเพื่อลดการทำงานของการ์ดจอ (CPU/GPU)",
+    Default = false,
+    Callback = function(Value)
+        pcall(function()
+            RunService:Set3dRenderingEnabled(not Value)
+        end)
+    end
 })
