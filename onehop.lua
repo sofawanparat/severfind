@@ -1,7 +1,7 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Server Hopper Hub",
+   Name = "HO Hub",
    LoadingTitle = "Loading Hopper...",
    LoadingSubtitle = "Selectable Server Finder",
    ConfigurationSaving = { Enabled = false },
@@ -14,6 +14,7 @@ local MiscTab = Window:CreateTab("Misc")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local PlaceId = game.PlaceId
 local LocalPlayer = Players.LocalPlayer
 
@@ -120,8 +121,6 @@ MainTab:CreateButton({
    end,
 })
 
-MiscTab:CreateLabel("ตั้งค่าปุ่มลัดสำหรับโปรแกรม")
-
 MiscTab:CreateKeybind({
    Name = "ปุ่มเปิด/ปิด UI (คลิกเพื่อเปลี่ยนปุ่ม)",
    CurrentKeybind = "RightControl",
@@ -139,5 +138,36 @@ MiscTab:CreateKeybind({
                rayfieldGui.Enabled = not rayfieldGui.Enabled
            end
        end
+   end,
+})
+
+MiscTab:CreateButton({
+   Name = "🗑️ Reduce Lag (ลบเทกเจอร์/ลดแสง)",
+   Callback = function()
+       settings().Rendering.QualityLevel = 1
+       game.Lighting.GlobalShadows = false
+       for _, v in pairs(game:GetDescendants()) do
+           if v:IsA("Part") or v:IsA("Union") or v:IsA("CornerWedgePart") or v:IsA("TrussPart") or v:IsA("MeshPart") then
+               v.Material = "Plastic"
+               v.Reflectance = 0
+           elseif v:IsA("Decal") or v:IsA("Texture") then
+               v.Transparency = 1
+           elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+               v.Lifetime = NumberRange.new(0)
+           elseif v:IsA("Explosion") or v:IsA("Fire") or v:IsA("SpotLight") or v:IsA("Smoke") or v:IsA("Sparkles") then
+               v.Enabled = false
+           end
+       end
+   end,
+})
+
+MiscTab:CreateToggle({
+   Name = "🚫 Disable Render (จอดำลดการใช้การ์ดจอ)",
+   CurrentValue = false,
+   Flag = "Disable3DRender",
+   Callback = function(Value)
+       pcall(function()
+           RunService:Set3dRenderingEnabled(not Value)
+       end)
    end,
 })
