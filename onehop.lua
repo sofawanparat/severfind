@@ -1,8 +1,8 @@
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
 local Window = Fluent:CreateWindow({
-    Title = "Hebo Hub",
-    SubTitle = "Selectable Server Finder",
+    Title = "Hebo hub",
+    SubTitle = "Ultra Fast Server Finder",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -44,7 +44,7 @@ local StatusLabel = Tabs.Main:AddParagraph({
 })
 
 local ServerDropdown = Tabs.Main:AddDropdown("ServerDropdown", {
-    Title = "เลือกเซิร์ฟเวอร์ (คน 1 คน)",
+    Title = "เลือกเซิร์ฟเวอร์",
     Values = {"ยังไม่มีข้อมูล (กด Refresh)"},
     Multi = false,
     Default = 1,
@@ -58,20 +58,27 @@ ServerDropdown:OnChanged(function(Value)
 end)
 
 local function RefreshServers()
-    StatusLabel:SetDesc("กำลังสแกนหาเซิร์ฟเวอร์ล่าสุด...")
+    StatusLabel:SetDesc("กำลังตรวจสอบระบบ API (โหมดความเร็วสูง)...")
     serverMap = {}
     selectedServerId = nil
     
-    local optionsList = {}
-    local foundCount = 0
+    local baseUrl = "https://games.roblox.com/v1/games/"
+    local testSuccess = pcall(function()
+        return game:HttpGet(baseUrl .. PlaceId .. "/servers/Public?limit=10")
+    end)
+    
+    if not testSuccess then
+        baseUrl = "https://games.roproxy.com/v1/games/"
+    end
+    
+    local foundServers = {}
     local cursor = ""
     local maxPagesToScan = 100
     
     for page = 1, maxPagesToScan do
-        StatusLabel:SetDesc("กำลังสแกนหน้า " .. page .. "... (พบ " .. foundCount .. "/10)")
+        StatusLabel:SetDesc("กำลังสแกนหาแบบเร็ว... (หน้า " .. page .. ")")
         
-        local url = "https://games.roproxy.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
-        
+        local url = baseUrl .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
         if cursor ~= "" then url = url .. "&cursor=" .. cursor end
         
         local success, result = pcall(function()
@@ -80,35 +87,53 @@ local function RefreshServers()
         
         if success and result and result.data then
             for _, server in ipairs(result.data) do
-                if server.playing == 1 and server.id ~= game.JobId then
-                    local ping = server.ping and tostring(server.ping) or "??"
-                    local fps = server.fps and tostring(math.floor(server.fps)) or "??"
-                    
-                    local displayName = "Server " .. (foundCount + 1) .. " [ผู้เล่น: " .. server.playing .. " คน | Ping: " .. ping .. "ms]"
-                    
-                    serverMap[displayName] = server.id
-                    table.insert(optionsList, displayName)
-                    foundCount = foundCount + 1
-                    
-                    if foundCount >= 10 then break end
+                if server.playing and server.playing > 0 and server.playing < Players.MaxPlayers and server.id ~= game.JobId then
+                    table.insert(foundServers, server)
+                    if #foundServers >= 10 then break end
                 end
             end
             
-            if foundCount >= 10 then break end
-            if result.nextPageCursor then cursor = result.nextPageCursor else break end
+            if #foundServers >= 10 then break end
+            
+            if result.nextPageCursor then 
+                cursor = result.nextPageCursor 
+            else 
+                break 
+            end
         else
-            StatusLabel:SetDesc("เกิดข้อผิดพลาด (อาจเป็นที่ Executor หรือ Proxy)")
-            break
+            if page == 1 then
+                StatusLabel:SetDesc("เกิดข้อผิดพลาด: API ถูกบล็อกหรือไม่ตอบสนอง")
+                return
+            else
+                break
+            end
         end
-        task.wait(0.1)
+        
+        if page % 5 == 0 then
+            task.wait(0.1)
+        end
     end
     
-    if foundCount > 0 then
-        StatusLabel:SetDesc("พบ " .. foundCount .. " เซิร์ฟเวอร์! กรุณาเลือกจากเมนู")
+    if #foundServers > 0 then
+        table.sort(foundServers, function(a, b)
+            return a.playing < b.playing
+        end)
+        
+        local optionsList = {}
+        for i, s in ipairs(foundServers) do
+            local ping = s.ping and tostring(s.ping) or "??"
+            
+            local displayName = "ผู้เล่น: " .. s.playing .. " คน | Ping: " .. ping .. "ms" .. string.rep(" ", i)
+            
+            serverMap[displayName] = s.id
+            table.insert(optionsList, displayName)
+        end
+        
+        StatusLabel:SetDesc("✅ ค้นหาเสร็จสิ้นอย่างรวดเร็ว!")
         ServerDropdown:SetValues(optionsList)
         ServerDropdown:SetValue(optionsList[1])
     else
-        StatusLabel:SetDesc("ไม่พบเซิร์ฟเวอร์ที่มีผู้เล่น 1 คน")
+        StatusLabel:SetDesc("ไม่พบข้อมูลเซิร์ฟเวอร์ที่ว่างเลย")
         ServerDropdown:SetValues({"ไม่พบข้อมูล"})
         ServerDropdown:SetValue("ไม่พบข้อมูล")
     end
@@ -116,7 +141,7 @@ end
 
 Tabs.Main:AddButton({
     Title = "🔄 Refresh ค้นหาเซิร์ฟเวอร์",
-    Description = "ดึงข้อมูลเซิร์ฟเวอร์ล่าสุด",
+    Description = "ค้นหาเซิร์ฟเวอร์ที่คนน้อยที่สุด (โหมดสปีดรวดเร็ว)",
     Callback = function()
         task.spawn(RefreshServers)
     end
@@ -133,6 +158,16 @@ Tabs.Main:AddButton({
         else
             StatusLabel:SetDesc("❌ กรุณาเลือกเซิร์ฟเวอร์จากเมนูก่อน!")
         end
+    end
+})
+
+Tabs.Misc:AddDropdown("InterfaceTheme", {
+    Title = "🎨 เปลี่ยนสีธีม (Theme)",
+    Description = "ปรับเปลี่ยนสีของหน้าต่าง UI",
+    Values = Fluent.Themes,
+    Default = Fluent.Theme,
+    Callback = function(Value)
+        Fluent:SetTheme(Value)
     end
 })
 
